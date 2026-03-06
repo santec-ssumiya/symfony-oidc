@@ -178,7 +178,7 @@ class OidcJwtHelper
 
     // Default claims
     $constraints          = [];
-    $issuedByConstraint   = new IssuedBy($issuer);
+    $issuedByConstraint   = new IssuedBy($this->resolveIssuerForToken($issuer, $token));
     $looseValidConstraint = new LooseValidAt($this->getClock(), new DateInterval("PT{$this->leewaySeconds}S"));
 
     switch ($tokenType) {
@@ -395,6 +395,33 @@ class OidcJwtHelper
         return new DateTimeImmutable();
       }
     };
+  }
+
+  /**
+   * Resolve dynamic multi-tenant issuer placeholders from token claims.
+   *
+   * Microsoft Entra ID discovery metadata for multi-tenant endpoints may
+   * expose issuer templates containing {tenantid} or {tenant}. In that case,
+   * validate against the token's tenant id (tid claim).
+   *
+   * @param non-empty-string $issuer
+   *
+   * @return non-empty-string
+   */
+  private function resolveIssuerForToken(string $issuer, UnencryptedToken $token): string
+  {
+    if (!str_contains($issuer, '{tenantid}') && !str_contains($issuer, '{tenant}')) {
+      return $issuer;
+    }
+
+    $tenantId = $token->claims()->get('tid');
+    if (!is_string($tenantId) || $tenantId === '') {
+      throw new OidcAuthenticationException(
+        'Unable to resolve tenant issuer placeholder, missing or invalid "tid" claim'
+      );
+    }
+
+    return str_replace(['{tenantid}', '{tenant}'], $tenantId, $issuer);
   }
 
   /** @phpstan-assert-if-true !null $this->jwksCache */

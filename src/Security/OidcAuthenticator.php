@@ -99,6 +99,11 @@ class OidcAuthenticator implements InteractiveAuthenticatorInterface, Authentica
       if ($this->userIdentifierFromIdToken) {
         /** @var UnencryptedToken $idToken */
         $userIdentifier = $idToken->claims()->get($this->userIdentifierProperty);
+        if (!$userIdentifier && isset($authData)) {
+          // ID tokenで取得できない場合はアクセストークンから取得
+          $accessToken = OidcJwtHelper::parseToken($authData->getAccessToken());
+          $userIdentifier = $accessToken->claims()->get($this->userIdentifierProperty);
+        }
       } else {
         $userIdentifier = $userData->getUserDataString($this->userIdentifierProperty);
       }
